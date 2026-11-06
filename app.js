@@ -48,7 +48,7 @@ async function loadPortrait(p){
  const epoch=unlockEpoch;
  try{
   let pending=portraitCache.get(p.id);
-  if(!pending){pending=decryptFile(manifest.portraits[p.id]).then(buffer=>{if(epoch!==unlockEpoch)return null;const mime=p.portrait.file.endsWith('.png')?'image/png':p.portrait.file.endsWith('.webp')?'image/webp':'image/jpeg';const url=URL.createObjectURL(new Blob([buffer],{type:mime}));urls.push(url);return url;});portraitCache.set(p.id,pending);}
+  if(!pending){pending=decryptFile(manifest.portraits[p.id]).then(buffer=>{if(epoch!==unlockEpoch)return null;const file=p.portrait.webFile||p.portrait.file,mime=file.endsWith('.png')?'image/png':file.endsWith('.webp')?'image/webp':'image/jpeg';const url=URL.createObjectURL(new Blob([buffer],{type:mime}));urls.push(url);return url;});portraitCache.set(p.id,pending);}
   const url=await pending;if(epoch!==unlockEpoch||selected!==p.id||!url)return;
   const img=$('#person-portrait');if(!img)return;img.src=url;img.hidden=false;$('#portrait-loading').hidden=true;
  }catch{portraitCache.delete(p.id);if(epoch===unlockEpoch&&selected===p.id&&$('#portrait-loading'))$('#portrait-loading').textContent='Portrait could not be opened. Select this person again to retry.';}
