@@ -37,3 +37,6 @@ body{font-size:18px}.header .nav-link{font-size:17px}.header .lock-button{font-s
 .portrait figcaption{font-size:17px;line-height:1.5;color:#354338}
 .portrait figcaption a{display:block;margin-top:12px;text-decoration:underline;overflow-wrap:anywhere;padding:8px 0}
 .portrait #portrait-loading{font-size:18px}
+
+.whole-tree #connections path.connection-halo{stroke:var(--paper);stroke-width:4;stroke-dasharray:none}
+.whole-tree #connections path.active-family{stroke:#293d35;stroke-width:2.4}

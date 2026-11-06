@@ -10,7 +10,7 @@ const years=p=>p.birthYear?(p.deathYear?`${p.birthYear} – ${p.deathYear}`:`Bor
 const birthPlace=p=>{const e=p.events.find(e=>e.type==='Birth');return e?e.details.slice(/\d/.test(e.details[0]||'')?1:0).join(' '):'';};
 const base64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,3500);}
-async function decryptFile(file){const r=await fetch(file,{cache:'no-store'});if(!r.ok)throw Error('Could not load archive');const bytes=new Uint8Array(await r.arrayBuffer());return crypto.subtle.decrypt({name:'AES-GCM',iv:bytes.slice(0,12)},key,bytes.slice(12));}
+async function decryptFile(file){const r=await fetch(file+'?v='+encodeURIComponent(manifest.salt),{cache:'no-store'});if(!r.ok)throw Error('Could not load archive');const bytes=new Uint8Array(await r.arrayBuffer());return crypto.subtle.decrypt({name:'AES-GCM',iv:bytes.slice(0,12)},key,bytes.slice(12));}
 $('#reveal').addEventListener('click',()=>{const input=$('#password');input.type=input.type==='password'?'text':'password';$('#reveal').textContent=input.type==='password'?'Show':'Hide';$('#reveal').setAttribute('aria-label',input.type==='password'?'Show password':'Hide password');});
 $('#unlock-form').addEventListener('submit',async e=>{e.preventDefault();const button=$('#unlock');button.disabled=true;button.innerHTML='Opening the archive…';$('#gate-error').textContent='';const epoch=++unlockEpoch;
  try{if(!crypto.subtle)throw Error('secure');const r=await fetch('archive.json',{cache:'no-store'});if(!r.ok)throw Error('network');manifest=await r.json();const material=await crypto.subtle.importKey('raw',enc.encode($('#password').value),'PBKDF2',false,['deriveKey']);key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:base64(manifest.salt),iterations:manifest.iterations,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['decrypt']);const payload=await decryptFile(manifest.data);if(epoch!==unlockEpoch)return;data=JSON.parse(dec.decode(payload));people=data.people;byId=Object.fromEntries(people.map(p=>[p.id,p]));$('#password').value='';$('#gate').hidden=true;$('#app').hidden=false;init();}
@@ -101,17 +101,22 @@ function renderWholeTree(keepCamera=false){
   if(!families.has(id))families.set(id,{parents:ids.map(id=>positions[id]),children:[]});
   families.get(id).children.push(positions[child.id]);
  }
+ const lanesByRow=new Map();
+ for(const [id,f] of [...families].sort((a,b)=>Math.min(...a[1].parents.map(p=>p.x))-Math.min(...b[1].parents.map(p=>p.x)))){
+  const row=Math.max(...f.parents.map(p=>p.y)),left=Math.min(...f.parents.map(p=>p.x)),right=Math.max(...f.parents.map(p=>p.x));
+  if(!lanesByRow.has(row))lanesByRow.set(row,[]);const lanes=lanesByRow.get(row);let lane=lanes.findIndex(end=>end<left);if(lane<0)lane=lanes.length;lanes[lane]=right;f.lane=lane;
+ }
  for(const [id,family] of families){
   const parents=family.parents,children=family.children;
   const jointX=parents.reduce((sum,p)=>sum+p.x+140,0)/parents.length;
-  const jointY=Math.max(...parents.map(p=>p.y+200))+30;
+  const jointY=Math.max(...parents.map(p=>p.y+200))+30+family.lane*18;
   if(parents.length===2){
    joined.add(id);const [a,b]=parents;
    wholeLinks.push({type:'couple',d:`M${a.x+140} ${a.y+200}V${jointY}H${b.x+140}V${b.y+200}`,family:id});
   }else wholeLinks.push({type:'parent',d:`M${jointX} ${parents[0].y+200}V${jointY}`,family:id});
   const rows=new Map();for(const c of children){if(!rows.has(c.y))rows.set(c.y,[]);rows.get(c.y).push(c);}
   for(const [row,group] of rows){
-   const branchY=row-40,left=Math.min(jointX,...group.map(c=>c.x+140)),right=Math.max(jointX,...group.map(c=>c.x+140));
+   const branchY=row-40+family.lane*18,left=Math.min(jointX,...group.map(c=>c.x+140)),right=Math.max(jointX,...group.map(c=>c.x+140));
    wholeLinks.push({type:'descent',d:`M${jointX} ${jointY}V${branchY}M${left} ${branchY}H${right}`,family:id});
    for(const c of group)wholeLinks.push({type:'child',d:`M${c.x+140} ${branchY}V${c.y}`,family:id});
   }
@@ -123,12 +128,12 @@ function renderWholeTree(keepCamera=false){
   wholeLinks.push({type:'partner',d:`M${a.x+140} ${a.y+200}V${y}H${b.x+140}V${b.y+200}`,family:id});
  }
  $('#tree-world').style.width=worldW+'px';$('#tree-world').style.height=worldH+'px';$('#connections').setAttribute('width',worldW);$('#connections').setAttribute('height',worldH);
- $('#connections').innerHTML=generations.map((g,i)=>`<text x="14" y="${65+i*340}" fill="#526544" font-size="28" font-family="Arial">Generation ${i+1}</text>`).join('')+wholeLinks.map(link=>`<path class="${link.type}" data-family="${link.family}" d="${link.d}"/>`).join('');
+ $('#connections').innerHTML=generations.map((g,i)=>`<text x="14" y="${65+i*340}" fill="#526544" font-size="28" font-family="Arial">Generation ${i+1}</text>`).join('')+wholeLinks.map(link=>{const f=families.get(link.family),active=link.family.split('|').includes(selected)||f?.children.some(c=>c.id===selected);return `<path class="connection-halo" d="${link.d}"/><path class="${link.type}${active?' active-family':''}" data-family="${link.family}" d="${link.d}"/>`;}).join('');
  $('#nodes').innerHTML=coords.map(c=>{const n=byId[c.id];return `<button class="person-node ${c.id===selected?'selected':''}" style="left:${c.x}px;top:${c.y}px" data-person="${c.id}" ${c.id===selected?'aria-current="true"':''} aria-label="${escapeHTML(n.name)}, ${escapeHTML(years(n))}. Select person."><span class="node-tag">${c.label}</span><span class="node-name">${escapeHTML(n.name)}</span><span class="node-years">${escapeHTML(years(n))}</span><span class="node-action">Select person</span></button>`;}).join('');
  $('#nodes').querySelectorAll('button').forEach(b=>b.addEventListener('click',e=>{if(suppressClick){e.preventDefault();return;}select(b.dataset.person,false,true);}));
  $('#canvas-title').textContent='FULL FAMILY TREE';$('#visible-count').textContent=`All ${people.length} people · ${generations.length} generations`;
  $('#tree-selection-name').textContent=byId[selected].name+' · '+years(byId[selected]);
- $('#whole-tree-help').textContent='A line joins both parents. Their children branch from its middle. “Show everyone” shows the full tree; “Read names larger” brings you closer.';
+ $('#whole-tree-help').textContent='A line joins both parents. Their children branch from its middle. Dark lines show the selected person’s immediate family.';
  if(!keepCamera)requestAnimationFrame(()=>showEveryone());
 }
 function showEveryone(){if(mode!=='whole')return;const r=viewport.getBoundingClientRect();scale=Math.min((r.width-24)/worldW,(r.height-36)/worldH);tx=(r.width-worldW*scale)/2;ty=(r.height-worldH*scale)/2;applyTransform();}
@@ -139,7 +144,7 @@ $('#save-tree').addEventListener('click',()=>{
  if(!data||mode!=='whole')return;
  const wrap=text=>{const lines=[];let line='';for(const word of text.split(' ')){if((line+' '+word).trim().length>23&&line){lines.push(line);line=word;}else line=(line+' '+word).trim();}if(line)lines.push(line);return lines;};
  const cards=coords.map(c=>{const p=byId[c.id];return `<g transform="translate(${c.x} ${c.y})"><rect width="280" height="200" fill="${c.id===selected?'#293d35':'#fffcf5'}" stroke="#667755" stroke-width="2"/><text x="18" y="32" fill="${c.id===selected?'#fff':'#293d35'}" font-family="Arial" font-size="22">${wrap(p.name).map((line,i)=>`<tspan x="18" dy="${i?27:0}">${escapeHTML(line)}</tspan>`).join('')}</text><text x="18" y="180" font-size="18" font-family="Arial" fill="${c.id===selected?'#fff':'#293d35'}">${escapeHTML(years(p))}</text></g>`;}).join('');
- const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${worldW}" height="${worldH+100}" viewBox="0 0 ${worldW} ${worldH+100}"><rect width="100%" height="100%" fill="#f4f1e9"/><style>path{fill:none;stroke:#728461;stroke-width:3}.partner{stroke-dasharray:8 5}</style><text x="40" y="45" font-family="Georgia" font-size="36" fill="#293d35">Weiss family tree · 173 people · 9 generations</text><g transform="translate(0 70)">${$('#connections').innerHTML}${cards}</g></svg>`;
+ const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${worldW}" height="${worldH+100}" viewBox="0 0 ${worldW} ${worldH+100}"><rect width="100%" height="100%" fill="#f4f1e9"/><style>path{fill:none;stroke:#728461;stroke-width:3}.partner{stroke-dasharray:8 5}.connection-halo{stroke:#f4f1e9;stroke-width:7}.active-family{stroke:#293d35;stroke-width:4}</style><text x="40" y="45" font-family="Georgia" font-size="36" fill="#293d35">Weiss family tree · 173 people · 9 generations</text><g transform="translate(0 70)">${$('#connections').innerHTML}${cards}</g></svg>`;
  const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));urls.push(url);const a=document.createElement('a');a.href=url;a.download='Weiss-full-family-tree.svg';a.click();toast('Full family tree saved. Open it in a browser to enlarge or print.');
 });
 function applyTransform(){$('#tree-world').style.transform=`translate(${tx}px,${ty}px) scale(${scale})`;$('#tree-world').style.setProperty('--tree-scale',scale);$('#zoom-value').textContent=Math.round(scale*100)+'%';}
