@@ -9,7 +9,7 @@ permissions:
   id-token: write
 concurrency:
   group: family-pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -20,9 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Prepare encrypted publishing files
-        run: |
-          mkdir _site
-          cp index.html app.js style.css favicon.svg archive.json *.enc _site/
+        run: node .github/scripts/prepare.mjs
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
