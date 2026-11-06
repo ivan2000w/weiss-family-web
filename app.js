@@ -41,7 +41,7 @@ function portraitMarkup(p){
  if(!p.portrait)return '';
  const photo=p.portrait,fictional=photo.kind==='fictional';
  const source=photo.sourceUrl&&/^https:\/\//.test(photo.sourceUrl)?`<a href="${escapeHTML(photo.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHTML(photo.sourceTitle||'View archive source')} ↗</a>`:'';
- return `<figure class="portrait ${fictional?'fictional':'historical'}"><span class="portrait-type">${fictional?'Fictional depiction':'Archive photograph'}</span><img id="person-portrait" alt="${fictional?'Fictional depiction of ':''}${escapeHTML(p.name)}" hidden><p id="portrait-loading" role="status">Opening portrait…</p><figcaption>${escapeHTML(photo.caption)}${source}</figcaption></figure>`;
+ return `<figure class="portrait ${fictional?'fictional':'historical'}"><span class="portrait-type">${fictional?'Fictional depiction':'Archive image'}</span><img id="person-portrait" alt="${fictional?'Fictional depiction of ':''}${escapeHTML(p.name)}" hidden><p id="portrait-loading" role="status">Opening portrait…</p><figcaption>${escapeHTML(photo.caption)}${source}</figcaption></figure>`;
 }
 async function loadPortrait(p){
  if(!p.portrait||!manifest.portraits?.[p.id])return;
